@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>Amorina</title>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+:root{--ac:#b0245a;--tx:#1d1b20;--mu:#6f6b76;--ln:#ececf0;--bg:#fff;--soft:#f7f6f8}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--tx);font:500 16px/1.4 Figtree,system-ui,sans-serif}
+main{padding:16px 16px 96px;max-width:640px;margin:0 auto}
+h1{font-size:26px;font-weight:800;margin:8px 0 14px;letter-spacing:-.02em}
+h2{font-size:18px;font-weight:700;margin:20px 0 8px}
+small,.mut{color:var(--mu);font-size:13px;display:block}
+input,select{width:100%;font:inherit;font-size:16px;padding:12px;border:1.5px solid var(--ln);border-radius:12px;background:#fff;color:var(--tx)}
+input:focus,select:focus{outline:none;border-color:var(--ac)}
+label{display:block;font-size:13px;color:var(--mu);margin:10px 0 0}
+label input,label select{margin-top:4px;color:var(--tx);font-size:16px}
+.btn{border:0;background:var(--ac);color:#fff;font:700 15px Figtree,sans-serif;padding:12px 16px;border-radius:12px;white-space:nowrap}
+.btn.s{padding:8px 12px;font-size:14px}.btn.big{width:100%;margin-top:12px;padding:15px}
+.btn.ghost{background:var(--soft);color:var(--tx)}.btn:active{opacity:.8}
+.bar{display:flex;gap:8px;margin-bottom:10px}
+.item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--ln)}
+.item b{display:block}.r{text-align:right;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.card{background:var(--soft);border-radius:16px;padding:16px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.big-n{font-size:40px;font-weight:800;letter-spacing:-.03em;color:var(--ac)}
+.tot{display:flex;justify-content:space-between;align-items:center;font-size:20px;padding:12px 0}
+.qty{display:flex;align-items:center;gap:6px}
+.qty button{width:36px;height:36px;border:1.5px solid var(--ln);background:#fff;border-radius:10px;font-size:20px}
+.qty input{width:52px;text-align:center;padding:8px 4px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opt{display:flex;align-items:center;gap:12px;padding:14px;border:1.5px solid var(--ln);border-radius:12px;margin:8px 0;color:var(--tx);font-size:16px}
+.opt input{width:20px;height:20px;margin:0}.opt span{flex:1;font-weight:600}
+.tag{font-size:12px;font-weight:700;padding:3px 9px;border-radius:99px;background:#fdebf2;color:var(--ac)}
+.tag.ok{background:#e8f6ee;color:#1d7a46}
+details.item{display:block}summary{display:flex;justify-content:space-between;cursor:pointer;list-style:none}
+summary::-webkit-details-marker{display:none}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;border:0;background:none;padding:12px 2px;font:600 12px Figtree,sans-serif;color:var(--mu)}
+nav button.on{color:var(--ac);box-shadow:inset 0 2px 0 var(--ac)}
+#modal{position:fixed;inset:0;background:rgba(20,18,24,.45);display:flex;align-items:flex-end;justify-content:center;z-index:10}
+#modal[hidden],#app[hidden],#login[hidden]{display:none}
+#sheet{background:#fff;width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;padding:8px 18px calc(22px + env(safe-area-inset-bottom));animation:up .2s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+#toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:var(--tx);color:#fff;padding:10px 16px;border-radius:99px;font-size:14px;z-index:20;max-width:90%}
+#toast[hidden]{display:none}
+#login{max-width:360px;margin:18vh auto;padding:0 20px}
+.logo{font-size:34px;font-weight:800;color:var(--ac);letter-spacing:-.03em}
+@media(prefers-reduced-motion:reduce){#sheet{animation:none}}
+</style>
+</head>
+<body>
+<div id="login" hidden>
+  <div class="logo">Amorina</div>
+  <label>Email<input id="le" type="email" autocomplete="username"></label>
+  <label>Contraseña<input id="lp" type="password" autocomplete="current-password"></label>
+  <button class="btn big" onclick="entrar()">Ingresar</button>
+</div>
+<div id="app" hidden>
+  <main id="main"></main>
+  <nav>
+    <button data-v="inicio" onclick="go('inicio')">Inicio</button>
+    <button data-v="ventas" onclick="go('ventas')">Ventas</button>
+    <button data-v="productos" onclick="go('productos')">Productos</button>
+    <button data-v="caja" onclick="go('caja')">Caja</button>
+    <button data-v="compras" onclick="go('compras')">Compras</button>
+    <button data-v="config" onclick="go('config')">Config.</button>
+  </nav>
+</div>
+<div id="modal" hidden onclick="if(event.target===this)cerrar()"><div id="sheet"></div></div>
+<div id="toast" hidden></div>
+
+<script>
+// 1) Pegá acá los datos de tu proyecto (Supabase > Project Settings > API)
+const SUPABASE_URL = 'https://qkhynoizdvsmevbigdti.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_AL6ECsr9mX2iYy5WOweqGA_Eyzn12kZ';
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const $ = s => document.querySelector(s);
+const fm = n => '$' + Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const S = { prods: [], medios: [], cfg: { margen: 100 }, cart: [] };
+let sc = null, tt;
+
+function toast(t) { const e = $('#toast'); e.textContent = t; e.hidden = false; clearTimeout(tt); tt = setTimeout(() => e.hidden = true, 2200); }
+function modal(h) { $('#sheet').innerHTML = h; $('#modal').hidden = false; }
+async function cerrar() { if (sc) { try { await sc.stop(); } catch (e) {} sc = null; } $('#modal').hidden = true; }
+
+// ---------- Sesión ----------
+async function entrar() {
+  const { error } = await db.auth.signInWithPassword({ email: $('#le').value.trim(), password: $('#lp').value });
+  if (error) return toast('Email o contraseña incorrectos');
+  start();
+}
+async function salir() { await db.auth.signOut(); location.reload(); }
+async function start() { $('#login').hidden = true; $('#app').hidden = false; await load(); go('inicio'); }
+async function load() {
+  const [c, m, p] = await Promise.all([
+    db.from('config').select().eq('id', 1).single(),
+    db.from('medios_pago').select().order('id'),
+    db.from('productos').select().order('nombre')
+  ]);
+  S.cfg = c.data || S.cfg; S.medios = m.data || []; S.prods = p.data || [];
+}
+async function go(v) {
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  $('#main').innerHTML = ''; await V[v](); scrollTo(0, 0);
+}
+
+// ---------- Inicio ----------
+async function inicio() {
+  const n = new Date(), m0 = new Date(n.getFullYear(), n.getMonth(), 1), h0 = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  const [v, c] = await Promise.all([
+    db.from('ventas').select('fecha,total').gte('fecha', m0.toISOString()),
+    db.from('compras').select('id').eq('estado', 'pendiente')
+  ]);
+  const vs = v.data || [], hoy = vs.filter(x => new Date(x.fecha) >= h0), sum = a => a.reduce((s, x) => s + +x.total, 0);
+  const low = S.prods.filter(p => p.stock <= 2).slice(0, 8);
+  $('#main').innerHTML = `<div class="logo">Amorina</div>
+  <div class="card" style="margin-top:14px"><small>Vendido hoy · ${hoy.length} ventas</small><div class="big-n">${fm(sum(hoy))}</div></div>
+  <div class="grid"><div class="card"><small>Este mes</small><b style="font-size:20px">${fm(sum(vs))}</b></div>
+  <div class="card" onclick="go('compras')"><small>Compras por recibir</small><b style="font-size:20px">${(c.data || []).length}</b></div></div>
+  <button class="btn big" onclick="go('ventas')">Nueva venta</button>
+  <h2>Stock bajo</h2>${low.map(p => `<div class="item" onclick="go('productos')"><div><b>${esc(p.nombre)}</b><small>${esc(p.talle || '')} · ${esc(p.sku)}</small></div><span class="tag">${p.stock} u.</span></div>`).join('') || '<p class="mut">Todo con stock.</p>'}`;
+}
+
+// ---------- Ventas ----------
+function ventas() {
+  $('#main').innerHTML = `<h1>Ventas</h1>
+  <div class="bar"><input id="q" placeholder="Nombre o código" oninput="buscar()" autocomplete="off"><button class="btn" onclick="scan()">Escanear</button></div>
+  <div id="res"></div><div id="cart"></div>`;
+  buscar(); cartUI();
+}
+function buscar() {
+  const t = ($('#q')?.value || '').trim().toLowerCase();
+  const l = t ? S.prods.filter(p => (p.nombre + ' ' + p.sku).toLowerCase().includes(t)).slice(0, 15) : [];
+  $('#res').innerHTML = l.map(p => `<div class="item"><div><b>${esc(p.nombre)}</b><small>${esc(p.talle || '')} · ${esc(p.sku)} · Stock ${p.stock}</small></div>
+  <div class="r"><b>${fm(p.precio)}</b><button class="btn s" onclick="add(${p.id})">Agregar</button></div></div>`).join('') || (t ? '<p class="mut">No hay resultados.</p>' : '');
+}
+function add(id) {
+  const p = S.prods.find(x => x.id === id), c = S.cart.find(x => x.id === id), q = (c?.q || 0) + 1;
+  if (q > p.stock) return toast('Sin stock suficiente de ' + p.nombre);
+  c ? c.q = q : S.cart.push({ id, q: 1 });
+  toast('Agregado: ' + p.nombre); cartUI();
+}
+function setq(id, q) {
+  q = parseInt(q) || 0; const p = S.prods.find(x => x.id === id);
+  if (q > p.stock) { q = p.stock; toast('Máximo en stock: ' + p.stock); }
+  S.cart = q <= 0 ? S.cart.filter(c => c.id !== id) : S.cart.map(c => c.id === id ? { id, q } : c); cartUI();
+}
+const sub = () => S.cart.reduce((s, c) => s + c.q * S.prods.find(p => p.id === c.id).precio, 0);
+function cartUI() {
+  const el = $('#cart'); if (!el) return;
+  el.innerHTML = S.cart.length ? `<h2>Carrito</h2>` + S.cart.map(c => { const p = S.prods.find(x => x.id === c.id);
+    return `<div class="item"><div><b>${esc(p.nombre)}</b><small>${esc(p.talle || '')} · ${fm(p.precio)} c/u</small></div>
+    <div class="qty"><button onclick="setq(${c.id},${c.q - 1})">−</button><input type="number" inputmode="numeric" value="${c.q}" onchange="setq(${c.id},this.value)"><button onclick="setq(${c.id},${c.q + 1})">+</button></div></div>`; }).join('')
+    + `<div class="tot"><span>Subtotal</span><b>${fm(sub())}</b></div><button class="btn big" onclick="cobrar()">Cobrar</button>` : '';
+}
+function cobrar() {
+  if (!S.medios.length) return toast('Cargá medios de pago en Configuración');
+  modal(`<h2>Medio de pago</h2>` + S.medios.map((m, i) => `<label class="opt"><input type="radio" name="mp" value="${m.id}" ${i ? '' : 'checked'} onchange="mpTot()"><span>${esc(m.nombre)}</span><small>${m.recargo > 0 ? '+' + m.recargo + '%' : ''}</small></label>`).join('')
+    + `<div class="tot"><span>Total</span><b id="mt"></b></div><button class="btn big" onclick="confirmar()">Confirmar venta</button>`);
+  mpTot();
+}
+const medioSel = () => S.medios.find(m => m.id == document.querySelector('input[name=mp]:checked')?.value);
+function mpTot() { const m = medioSel(); $('#mt').textContent = fm(sub() * (1 + (m?.recargo || 0) / 100)); }
+async function confirmar() {
+  const m = medioSel(), s = sub(), rec = s * m.recargo / 100;
+  const { data: v, error } = await db.from('ventas').insert({ subtotal: s, recargo: rec, total: s + rec, medio_pago: m.nombre }).select().single();
+  if (error) return toast(error.message);
+  await db.from('venta_items').insert(S.cart.map(c => { const p = S.prods.find(x => x.id === c.id); return { venta_id: v.id, producto_id: p.id, nombre: p.nombre, sku: p.sku, talle: p.talle, cantidad: c.q, precio: p.precio }; }));
+  await Promise.all(S.cart.map(c => db.rpc('ajustar_stock', { p_id: c.id, p_delta: -c.q })));
+  S.cart = []; await cerrar(); await load(); toast('Venta registrada'); ventas();
+}
+function scan() {
+  modal(`<h2>Escanear código</h2><div id="reader"></div><button class="btn ghost big" onclick="cerrar()">Terminar</button>`);
+  sc = new Html5Qrcode('reader'); let last = '', t = 0;
+  sc.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 260, height: 140 } }, code => {
+    if (code === last && Date.now() - t < 2500) return; last = code; t = Date.now();
+    const p = S.prods.find(x => x.sku.toLowerCase() === code.toLowerCase());
+    p ? add(p.id) : toast('Código no encontrado: ' + code);
+  }).catch(() => toast('No se pudo abrir la cámara'));
+}
+
+// ---------- Productos ----------
+function productos() {
+  $('#main').innerHTML = `<h1>Productos</h1><div class="bar"><input id="q" placeholder="Buscar" oninput="listP()"><button class="btn" onclick="formP()">Nuevo</button></div><div id="res"></div>`;
+  listP();
+}
+function listP() {
+  const t = ($('#q')?.value || '').trim().toLowerCase();
+  $('#res').innerHTML = S.prods.filter(p => !t || (p.nombre + ' ' + p.sku).toLowerCase().includes(t)).slice(0, 100).map(p =>
+    `<div class="item" onclick="formP(${p.id})"><div><b>${esc(p.nombre)}</b><small>${esc(p.talle || '')} · ${esc(p.sku)}</small></div><div class="r"><b>${fm(p.precio)}</b><span class="tag ${p.stock > 2 ? 'ok' : ''}">${p.stock} u.</span></div></div>`).join('') || '<p class="mut">Todavía no hay productos.</p>';
+}
+function formP(id) {
+  const p = S.prods.find(x => x.id === id) || {};
+  modal(`<h2>${id ? 'Editar' : 'Nuevo'} producto</h2>
+  <label>Nombre<input id="pn" value="${esc(p.nombre || '')}"></label>
+  <div class="row2"><label>Código SKU<input id="ps" value="${esc(p.sku || '')}"></label><label>Talle<input id="pt" value="${esc(p.talle || '')}"></label></div>
+  <div class="row2"><label>Costo<input id="pc" type="number" inputmode="decimal" value="${p.costo ?? ''}" oninput="sug()"></label><label>Precio de venta<input id="pp" type="number" inputmode="decimal" value="${p.precio ?? ''}"></label></div>
+  <small id="sg">El precio se sugiere con un margen de ${S.cfg.margen}% y podés cambiarlo.</small>
+  <label>Stock<input id="pk" type="number" inputmode="numeric" value="${p.stock ?? 0}"></label>
+  <button class="btn big" onclick="saveP(${id || 0})">Guardar</button>${id ? `<button class="btn ghost big" onclick="delP(${id})">Eliminar</button>` : ''}`);
+}
+function sug() { const c = +$('#pc').value || 0, p = Math.round(c * (1 + S.cfg.margen / 100)); $('#pp').value = p; $('#sg').textContent = 'Precio sugerido: ' + fm(p); }
+async function saveP(id) {
+  const o = { nombre: $('#pn').value.trim(), sku: $('#ps').value.trim(), talle: $('#pt').value.trim(), costo: +$('#pc').value || 0, precio: +$('#pp').value || 0, stock: parseInt($('#pk').value) || 0 };
+  if (!o.nombre || !o.sku) return toast('Completá nombre y código');
+  const { error } = id ? await db.from('productos').update(o).eq('id', id) : await db.from('productos').insert(o);
+  if (error) return toast(error.code === '23505' ? 'Ese código ya existe' : error.message);
+  await cerrar(); await load(); toast('Producto guardado'); productos();
+}
+async function delP(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  const { error } = await db.from('productos').delete().eq('id', id); if (error) return toast(error.message);
+  await cerrar(); await load(); productos();
+}
+
+// ---------- Caja ----------
+function caja() {
+  S.cd = S.cd || new Date().toLocaleDateString('sv');
+  $('#main').innerHTML = `<h1>Caja</h1><input type="date" id="cd" value="${S.cd}" onchange="S.cd=this.value;cajaL()"><div id="cl"></div>`; cajaL();
+}
+async function cajaL() {
+  const a = new Date(S.cd + 'T00:00:00'), b = new Date(a); b.setDate(b.getDate() + 1);
+  const { data } = await db.from('ventas').select('*,venta_items(*)').gte('fecha', a.toISOString()).lt('fecha', b.toISOString()).order('fecha', { ascending: false });
+  S.vs = data || []; const por = {};
+  S.vs.forEach(v => por[v.medio_pago] = (por[v.medio_pago] || 0) + +v.total);
+  $('#cl').innerHTML = `<div class="card" style="margin-top:12px"><small>Total del día · ${S.vs.length} ventas</small><div class="big-n">${fm(S.vs.reduce((s, v) => s + +v.total, 0))}</div>
+  ${Object.entries(por).map(([k, v]) => `<div class="item" style="padding:6px 0"><span>${esc(k)}</span><b>${fm(v)}</b></div>`).join('')}</div>
+  <h2>Ventas</h2>` + (S.vs.map(v => `<details class="item"><summary><span>${new Date(v.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} · ${esc(v.medio_pago)}</span><b>${fm(v.total)}</b></summary>
+  ${v.venta_items.map(i => `<small>${i.cantidad} × ${esc(i.nombre)} ${esc(i.talle || '')} — ${fm(i.precio)}</small>`).join('')}
+  ${+v.recargo ? `<small>Recargo: ${fm(v.recargo)}</small>` : ''}<button class="btn ghost s" style="margin-top:8px" onclick="anular(${v.id})">Anular venta</button></details>`).join('') || '<p class="mut">No hay ventas en este día.</p>');
+}
+async function anular(id) {
+  if (!confirm('¿Anular esta venta? El stock vuelve a sumarse.')) return;
+  const v = S.vs.find(x => x.id === id);
+  await Promise.all(v.venta_items.filter(i => i.producto_id).map(i => db.rpc('ajustar_stock', { p_id: i.producto_id, p_delta: i.cantidad })));
+  await db.from('ventas').delete().eq('id', id); await load(); toast('Venta anulada'); cajaL();
+}
+
+// ---------- Compras ----------
+async function compras() {
+  $('#main').innerHTML = `<h1>Compras</h1><button class="btn big" style="margin:0 0 8px" onclick="formC()">Nueva compra</button><div id="cl"></div>`;
+  const { data } = await db.from('compras').select('*,compra_items(*)').order('fecha', { ascending: false }).limit(50);
+  S.cs = data || [];
+  $('#cl').innerHTML = S.cs.map(c => `<div class="item" onclick="verC(${c.id})"><div><b>${esc(c.proveedor)}</b><small>${new Date(c.fecha).toLocaleDateString('es-AR')}</small></div>
+  <div class="r"><b>${fm(totC(c))}</b><span class="tag ${c.estado === 'recibida' ? 'ok' : ''}">${c.estado === 'recibida' ? 'Recibida' : 'Por recibir'}</span></div></div>`).join('') || '<p class="mut">Todavía no hay compras.</p>';
+}
+const totC = c => c.compra_items.reduce((s, i) => s + i.cantidad * i.costo, 0) + +c.envio;
+function rowC() {
+  return `<div class="card ci" style="margin-top:10px"><select class="cp" onchange="pickC(this)"><option value="">Otro (sin cargar aún)</option>${S.prods.map(p => `<option value="${p.id}">${esc(p.nombre)} ${esc(p.talle || '')} · ${esc(p.sku)}</option>`).join('')}</select>
+  <input class="cd" placeholder="Descripción" style="margin-top:6px"><div class="row2" style="margin-top:6px"><input class="cq" type="number" inputmode="numeric" placeholder="Cantidad" value="1"><input class="cc" type="number" inputmode="decimal" placeholder="Costo unitario"></div></div>`;
+}
+function pickC(s) { const p = S.prods.find(x => x.id == s.value), r = s.closest('.ci'); if (p) { r.querySelector('.cc').value = p.costo; r.querySelector('.cd').value = p.nombre; } }
+function formC() {
+  modal(`<h2>Nueva compra</h2><label>Proveedor<input id="cv"></label><label>Costo de envío<input id="ce" type="number" inputmode="decimal" value="0"></label>
+  <div id="ci">${rowC()}</div><button class="btn ghost big" onclick="$('#ci').insertAdjacentHTML('beforeend',rowC())">Agregar otro producto</button><button class="btn big" onclick="saveC()">Guardar compra</button>`);
+}
+async function saveC() {
+  const items = [...document.querySelectorAll('.ci')].map(r => ({ producto_id: r.querySelector('.cp').value || null, descripcion: r.querySelector('.cd').value.trim(), cantidad: parseInt(r.querySelector('.cq').value) || 0, costo: +r.querySelector('.cc').value || 0 })).filter(i => i.cantidad > 0 && (i.producto_id || i.descripcion));
+  if (!$('#cv').value.trim() || !items.length) return toast('Completá proveedor y al menos un producto');
+  const { data: c, error } = await db.from('compras').insert({ proveedor: $('#cv').value.trim(), envio: +$('#ce').value || 0 }).select().single();
+  if (error) return toast(error.message);
+  await db.from('compra_items').insert(items.map(i => ({ ...i, compra_id: c.id })));
+  await cerrar(); toast('Compra guardada'); compras();
+}
+function verC(id) {
+  const c = S.cs.find(x => x.id === id), pend = c.estado !== 'recibida';
+  modal(`<h2>${esc(c.proveedor)}</h2>` + c.compra_items.map(i => `<div class="item"><div><b>${esc(i.descripcion || '')}</b><small>${i.cantidad} × ${fm(i.costo)}${i.producto_id ? '' : ' · sin producto cargado'}</small></div><b>${fm(i.cantidad * i.costo)}</b></div>`).join('')
+    + `<div class="item"><span>Envío</span><b>${fm(c.envio)}</b></div><div class="tot"><span>Total</span><b>${fm(totC(c))}</b></div>`
+    + (pend ? `<button class="btn big" onclick="recibir(${id})">Marcar como recibida</button>` : `<small>Recibida el ${new Date(c.recibida_el).toLocaleDateString('es-AR')}</small>`)
+    + `<button class="btn ghost big" onclick="delC(${id})">Eliminar</button>`);
+}
+async function recibir(id) {
+  const c = S.cs.find(x => x.id === id), con = c.compra_items.filter(i => i.producto_id);
+  await Promise.all(con.map(async i => { await db.rpc('ajustar_stock', { p_id: i.producto_id, p_delta: i.cantidad }); await db.from('productos').update({ costo: i.costo }).eq('id', i.producto_id); }));
+  await db.from('compras').update({ estado: 'recibida', recibida_el: new Date().toISOString() }).eq('id', id);
+  await cerrar(); await load(); toast(con.length < c.compra_items.length ? 'Recibida. Cargá en Productos los que faltan' : 'Recibida y stock actualizado'); compras();
+}
+async function delC(id) { if (!confirm('¿Eliminar esta compra? El stock no se modifica.')) return; await db.from('compras').delete().eq('id', id); await cerrar(); compras(); }
+
+// ---------- Configuración ----------
+function config() {
+  $('#main').innerHTML = `<h1>Configuración</h1>
+  <label>Margen para precio sugerido (%)<input type="number" inputmode="decimal" value="${S.cfg.margen}" onchange="saveM(this.value)"></label>
+  <h2>Medios de pago</h2><small>El recargo (%) se suma al total de la venta.</small>
+  <div id="mp">${S.medios.map(m => `<div class="item"><div style="flex:1"><input value="${esc(m.nombre)}" onchange="upM(${m.id},'nombre',this.value)"></div><div style="width:84px"><input type="number" inputmode="decimal" value="${m.recargo}" onchange="upM(${m.id},'recargo',this.value)"></div><button class="btn ghost s" onclick="delM(${m.id})">✕</button></div>`).join('')}</div>
+  <button class="btn ghost big" onclick="addM()">Agregar medio de pago</button><button class="btn ghost big" style="margin-top:28px" onclick="salir()">Cerrar sesión</button>`;
+}
+async function saveM(v) { S.cfg.margen = +v || 0; await db.from('config').update({ margen: S.cfg.margen }).eq('id', 1); toast('Margen guardado'); }
+async function upM(id, f, v) { await db.from('medios_pago').update({ [f]: f === 'recargo' ? +v || 0 : v }).eq('id', id); await load(); toast('Guardado'); }
+async function addM() { await db.from('medios_pago').insert({ nombre: 'Nuevo medio', recargo: 0 }); await load(); config(); }
+async function delM(id) { if (!confirm('¿Eliminar este medio de pago?')) return; await db.from('medios_pago').delete().eq('id', id); await load(); config(); }
+
+const V = { inicio, ventas, productos, caja, compras, config };
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && !$('#login').hidden) entrar(); });
+(async () => { const { data } = await db.auth.getSession(); data.session ? start() : $('#login').hidden = false; })();
+</script>
+</body>
+</html>
