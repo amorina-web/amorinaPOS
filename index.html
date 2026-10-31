@@ -45,7 +45,7 @@ nav button{flex:1 0 auto;border:0;background:none;padding:12px 11px;font:600 12p
 nav button.on{color:var(--ac);box-shadow:inset 0 2px 0 var(--ac)}
 #modal{position:fixed;inset:0;background:rgba(20,18,24,.45);display:flex;align-items:flex-end;justify-content:center;z-index:10}
 #modal[hidden],#app[hidden],#login[hidden]{display:none}
-#sheet{background:#fff;width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;padding:8px 18px calc(22px + env(safe-area-inset-bottom));animation:up .2s ease-out}
+#sheet{background:#fff;width:100%;max-width:640px;max-height:90vh;max-height:90dvh;overflow:auto;overscroll-behavior:contain;border-radius:22px 22px 0 0;padding:8px 18px calc(22px + env(safe-area-inset-bottom));animation:up .2s ease-out}
 @keyframes up{from{transform:translateY(40px);opacity:0}}
 #toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:var(--tx);color:#fff;padding:10px 16px;border-radius:99px;font-size:14px;z-index:20;max-width:90%}
 #toast[hidden]{display:none}
@@ -59,7 +59,10 @@ nav button.on{color:var(--ac);box-shadow:inset 0 2px 0 var(--ac)}
 .tr b{display:block}.tr span:last-child,.tr>b{text-align:right}.th{font-weight:700;font-size:13px}
 .tr2{display:flex;justify-content:space-between;color:var(--mu);font-size:14px}
 .tt{display:flex;justify-content:space-between;font-size:22px;font-weight:800;padding:4px 0}.tp{color:var(--mu);font-size:14px}
-@media print{@page{margin:8mm}body>*:not(#modal){display:none!important}#modal{position:static;background:none;display:block}#sheet{max-height:none;overflow:visible;padding:0;animation:none}.noprint{display:none!important}#ticket{border:0;margin:0}}
+@media print{@page{margin:8mm}body>*:not(#modal){display:none!important}#modal{position:static;background:none;display:block}#sheet{max-height:none;overflow:visible;padding:0;animation:none}.noprint,.mh{display:none!important}#ticket{border:0;margin:0}}
+.mh{position:sticky;top:-8px;z-index:2;background:#fff;display:flex;justify-content:flex-end;padding:10px 0 6px}
+.x{width:42px;height:42px;border:0;border-radius:50%;background:var(--soft);font-size:18px;color:var(--tx)}
+.card .btn.ghost{background:#fff;border:1.5px solid var(--ln)}
 @media(prefers-reduced-motion:reduce){#sheet{animation:none}}
 </style>
 </head>
@@ -98,8 +101,11 @@ const S = { prods: [], medios: [], cfg: { margen: 100 }, cart: [] };
 let sc = null, tt;
 
 function toast(t) { const e = $('#toast'); e.textContent = t; e.hidden = false; clearTimeout(tt); tt = setTimeout(() => e.hidden = true, 2200); }
-function modal(h) { $('#sheet').innerHTML = h; $('#modal').hidden = false; }
-async function cerrar() { if (sc) { try { await sc.stop(); } catch (e) {} sc = null; } $('#modal').hidden = true; }
+function modal(h) {
+  $('#sheet').innerHTML = '<div class="mh"><button class="x" onclick="cerrar()" aria-label="Cerrar">✕</button></div>' + h; $('#sheet').scrollTop = 0; $('#modal').hidden = false;
+  if (!S.mo) { S.mo = 1; history.pushState({ m: 1 }, ''); }
+}
+async function cerrar() { if (sc) { try { await sc.stop(); } catch (e) {} sc = null; } $('#modal').hidden = true; S.mo = 0; }
 
 // ---------- Sesión ----------
 async function entrar() {
@@ -169,7 +175,7 @@ function formL() {
   <label>Descripción<input id="ld" placeholder="Ej: Remera"></label>
   <div class="row2"><label>Cantidad<input id="lq" type="number" inputmode="numeric" value="1"></label><label>Precio de venta (c/u)<input id="lp2" type="number" inputmode="decimal"></label></div>
   <label>Costo (c/u, opcional)<input id="lc" type="number" inputmode="decimal"></label>
-  <button class="btn big" onclick="addL()">Agregar al carrito</button>`);
+  <button class="btn big" onclick="addL()">Agregar al carrito</button><button class="btn ghost big" onclick="cerrar()">Cancelar</button>`);
 }
 function addL() {
   const d = $('#ld').value.trim(), q = parseInt($('#lq').value) || 0, p = +$('#lp2').value || 0;
@@ -195,7 +201,7 @@ function cartUI() {
 function cobrar() {
   if (!S.medios.length) return toast('Cargá medios de pago en Configuración');
   modal(`<h2>Medio de pago</h2>` + S.medios.map((m, i) => `<label class="opt"><input type="radio" name="mp" value="${m.id}" ${i ? '' : 'checked'} onchange="mpTot()"><span>${esc(m.nombre)}</span><small>${m.recargo > 0 ? '+' + m.recargo + '%' : ''}</small></label>`).join('')
-    + `<div class="tot"><span>Total</span><b id="mt"></b></div><button class="btn big" onclick="confirmar()">Confirmar venta</button>`);
+    + `<div class="tot"><span>Total</span><b id="mt"></b></div><button class="btn big" onclick="confirmar()">Confirmar venta</button><button class="btn ghost big" onclick="cerrar()">Volver</button>`);
   mpTot();
 }
 const medioSel = () => S.medios.find(m => m.id == document.querySelector('input[name=mp]:checked')?.value);
@@ -254,9 +260,8 @@ function listP() {
 }
 function rowV(v) {
   return `<div class="card vrow" data-id="${v.id || ''}" style="margin-top:8px"><div class="row2"><label>Talle<select class="vt" onchange="autoSku(this)">${talleOpts(v.talle)}</select></label><label>Código (SKU)<input class="vs" placeholder="Ej: A519" value="${esc(v.sku || '')}"></label></div>
-  <div class="row2"><label>Stock (unidades)<input class="vk" type="number" inputmode="numeric" value="${v.stock ?? 0}"></label><div style="display:flex;flex-direction:column;gap:6px;justify-content:flex-end"><button class="btn ghost s" onclick="rmV(this)">Quitar talle</button>${v.id ? '<button class="btn ghost s" onclick="sepV(this)">Separar</button>' : ''}</div></div></div>`;
+  <div class="row2"><label>Stock (unidades)<input class="vk" type="number" inputmode="numeric" value="${v.stock ?? 0}"></label><div style="display:flex;flex-direction:column;gap:6px;justify-content:flex-end"><button class="btn ghost s" onclick="rmV(this)">Quitar talle</button></div></div></div>`;
 }
-function sepV(b) { b.closest('.vrow').dataset.sep = '1'; b.closest('.vrow').hidden = true; toast('Se separa como otro producto al guardar'); }
 function autoSku(sel) {
   const r = sel.closest('.vrow'), i = r.querySelector('.vs'), f = document.querySelector('.vrow');
   if (!i.value && r !== f && sel.value && f.querySelector('.vs').value) i.value = f.querySelector('.vs').value + '-' + sel.value;
@@ -271,16 +276,16 @@ function formP(id) {
   <div class="row2"><label>Costo<input id="pc" type="number" inputmode="decimal" value="${p.costo ?? ''}" oninput="sug()"></label><label>Precio de venta<input id="pp" type="number" inputmode="decimal" value="${p.precio ?? ''}"></label></div>
   <small id="sg">El precio se sugiere con un margen de ${S.cfg.margen}% y podés cambiarlo. Vale para todos los talles.</small>
   ${p.costo_actualizado ? `<small>Costo actualizado el ${new Date(p.costo_actualizado).toLocaleDateString('es-AR')}</small>` : ''}
-  <h2>Talles y stock</h2><small style="margin-bottom:4px">Cada fila es un talle de este producto. Si una fila es en realidad otro producto, tocá Separar.</small><div id="vr">${(vs.length ? vs : [{}]).map(rowV).join('')}</div>
+  <h2>Talles y stock</h2><small style="margin-bottom:4px">Cada fila es un talle de este producto.</small><div id="vr">${(vs.length ? vs : [{}]).map(rowV).join('')}</div>
   <button class="btn ghost big" onclick="$('#vr').insertAdjacentHTML('beforeend',rowV({}))">Agregar talle</button>
-  <button class="btn big" onclick="saveP(${id || 0})">Guardar</button>${p0 ? `<button class="btn ghost big" onclick="delP(${id})">Eliminar producto</button>` : ''}`);
+  <button class="btn big" onclick="saveP(${id || 0})">Guardar</button><button class="btn ghost big" onclick="cerrar()">Cancelar</button>${p0 ? `<button class="btn ghost big" onclick="delP(${id})">Eliminar producto</button>` : ''}`);
 }
 function sug() { const c = +$('#pc').value || 0, p = Math.round(c * (1 + S.cfg.margen / 100)); $('#pp').value = p; $('#sg').textContent = 'Precio sugerido: ' + fm(p); }
 async function saveP(id) {
   const nombre = $('#pn').value.trim(); if (!nombre) return toast('Escribí el nombre');
   const base = { nombre, categoria_id: +$('#pg').value || null, costo: +$('#pc').value || 0, precio: +$('#pp').value || 0 };
-  const rows = [...document.querySelectorAll('.vrow')].map(r => ({ id: r.dataset.id, del: r.dataset.del, sep: r.dataset.sep, talle: r.querySelector('.vt').value || null, sku: r.querySelector('.vs').value.trim(), stock: parseInt(r.querySelector('.vk').value) || 0 }));
-  const act = rows.filter(r => !r.del && !r.sep), dels = rows.filter(r => r.del && r.id), seps = rows.filter(r => r.sep && !r.del && r.id);
+  const rows = [...document.querySelectorAll('.vrow')].map(r => ({ id: r.dataset.id, del: r.dataset.del, talle: r.querySelector('.vt').value || null, sku: r.querySelector('.vs').value.trim(), stock: parseInt(r.querySelector('.vk').value) || 0 }));
+  const act = rows.filter(r => !r.del), dels = rows.filter(r => r.del && r.id);
   if (!act.length) return toast('Agregá al menos un talle');
   if (act.some(r => !r.sku)) return toast('Falta el código de un talle');
   if (new Set(act.map(r => r.sku.toLowerCase())).size < act.length) return toast('Hay códigos repetidos');
@@ -292,7 +297,6 @@ async function saveP(id) {
     const { error } = r.id ? await db.from('productos').update(o).eq('id', r.id) : await db.from('productos').insert(o);
     if (error) return toast(error.code === '23505' ? 'El código ' + r.sku + ' ya existe' : error.message);
   }
-  for (const r of seps) await db.from('productos').update({ grupo: crypto.randomUUID() }).eq('id', r.id);
   if (dels.length) await db.from('productos').delete().in('id', dels.map(r => +r.id));
   await cerrar(); await load(); toast('Producto guardado'); productos();
 }
@@ -371,7 +375,7 @@ function formC() {
   <datalist id="dl">${S.prods.map(p => `<option value="${esc(lblP(p))}">`).join('')}</datalist>
   <div id="ci">${rowC()}</div><button class="btn ghost big" onclick="$('#ci').insertAdjacentHTML('beforeend',rowC())">Agregar otro producto</button>
   <div class="tot"><span>Total de la compra</span><b id="ct">$0</b></div><small>El envío se carga al recibir y se reparte en el costo de cada producto.</small>
-  <button class="btn big" onclick="saveC()">Guardar compra</button>`);
+  <button class="btn big" onclick="saveC()">Guardar compra</button><button class="btn ghost big" onclick="cerrar()">Cancelar</button>`);
 }
 async function saveC() {
   const pv = S.provs.find(x => x.id == $('#cv').value); if (!pv) return toast('Elegí un proveedor');
@@ -396,14 +400,14 @@ function verC(id) {
   modal(`<h2>${esc(c.proveedor)}</h2>` + c.compra_items.map(i => `<div class="item"><div><b>${esc(i.descripcion || '')}</b><small>${i.cantidad} × ${fm(i.costo)}${rec && i.costo_final ? ' · costo final ' + fm(i.costo_final) : ''}</small></div><b>${fm(i.cantidad * i.costo)}</b></div>`).join('')
     + (rec ? `<div class="item"><span>Envío</span><b>${fm(c.envio)}</b></div>` : '') + `<div class="tot"><span>Total</span><b>${fm(totC(c))}</b></div>`
     + (rec ? `<small>Recibida el ${new Date(c.recibida_el).toLocaleDateString('es-AR')}</small>` : `<button class="btn big" onclick="recibirForm(${id})">Recibir mercadería</button>`)
-    + `<button class="btn ghost big" onclick="delC(${id})">Eliminar</button>`);
+    + `<button class="btn ghost big" onclick="cerrar()">Cerrar</button><button class="btn ghost big" onclick="delC(${id})">Eliminar compra</button>`);
 }
 function recibirForm(id) {
   const c = S.cs.find(x => x.id === id);
   modal(`<h2>Recibir compra</h2><small>${esc(c.proveedor)} · Mercadería ${fm(subC(c))}</small>
   <label>Costo de envío<input id="re" type="number" inputmode="decimal" value="0" oninput="prevR(${id})"></label><div id="rp"></div>
   <label class="opt"><input type="checkbox" id="rpr"><span>Actualizar precio de venta con mi margen</span></label>
-  <button class="btn big" onclick="recibir(${id})">Confirmar recepción</button>`);
+  <button class="btn big" onclick="recibir(${id})">Confirmar recepción</button><button class="btn ghost big" onclick="verC(${id})">Volver</button>`);
   prevR(id);
 }
 function prevR(id) {
@@ -480,7 +484,8 @@ async function stats() {
 }
 
 const V = { inicio, ventas, productos, caja, compras, stats, config };
-document.addEventListener('keydown', e => { if (e.key === 'Enter' && !$('#login').hidden) entrar(); });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && !$('#login').hidden) entrar(); if (e.key === 'Escape' && !$('#modal').hidden) cerrar(); });
+addEventListener('popstate', () => { if (!$('#modal').hidden) cerrar(); });
 (async () => { const { data } = await db.auth.getSession(); data.session ? start() : $('#login').hidden = false; })();
 </script>
 </body>
