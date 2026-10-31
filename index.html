@@ -110,13 +110,15 @@ async function entrar() {
 async function salir() { await db.auth.signOut(); location.reload(); }
 async function start() { $('#login').hidden = true; $('#app').hidden = false; await load(); go('inicio'); }
 async function load() {
-  const [c, m, p, pv] = await Promise.all([
+  const [c, m, p, pv, ca, ta] = await Promise.all([
     db.from('config').select().eq('id', 1).single(),
     db.from('medios_pago').select().order('id'),
     db.from('productos').select().order('nombre'),
-    db.from('proveedores').select().order('nombre')
+    db.from('proveedores').select().order('nombre'),
+    db.from('categorias').select().order('nombre'),
+    db.from('talles').select().order('id')
   ]);
-  S.provs = pv.data || [];
+  S.provs = pv.data || []; S.cats = ca.data || []; S.talles = ta.data || [];
   S.cfg = c.data || S.cfg; S.medios = m.data || []; S.prods = p.data || [];
 }
 async function go(v) {
@@ -230,19 +232,23 @@ function scan() {
 
 // ---------- Productos ----------
 function productos() {
-  $('#main').innerHTML = `<h1>Productos</h1><div class="bar"><input id="q" placeholder="Buscar" oninput="listP()"><button class="btn" onclick="formP()">Nuevo</button></div><div id="res"></div>`;
+  $('#main').innerHTML = `<h1>Productos</h1><div class="bar"><input id="q" placeholder="Buscar" oninput="listP()"><button class="btn" onclick="formP()">Nuevo</button></div>
+  <div class="row2" style="margin-bottom:10px"><select id="fc" onchange="listP()"><option value="">Todas las categorías</option>${S.cats.map(c => `<option value="${c.id}">${esc(c.nombre)}</option>`).join('')}</select><select id="ft" onchange="listP()"><option value="">Todos los talles</option>${S.talles.map(t => `<option>${esc(t.nombre)}</option>`).join('')}</select></div><div id="res"></div>`;
   listP();
 }
 function listP() {
-  const t = ($('#q')?.value || '').trim().toLowerCase();
-  $('#res').innerHTML = S.prods.filter(p => !t || (p.nombre + ' ' + p.sku).toLowerCase().includes(t)).slice(0, 100).map(p =>
-    `<div class="item" onclick="formP(${p.id})"><div><b>${esc(p.nombre)}</b><small>${esc(p.talle || '')} · ${esc(p.sku)}</small></div><div class="r"><b>${fm(p.precio)}</b><span class="tag ${p.stock > 2 ? 'ok' : ''}">${p.stock} u.</span></div></div>`).join('') || '<p class="mut">Todavía no hay productos.</p>';
+  const t = ($('#q')?.value || '').trim().toLowerCase(), fc = $('#fc')?.value || '', ft = $('#ft')?.value || '';
+  const l = S.prods.filter(p => (!t || (p.nombre + ' ' + p.sku).toLowerCase().includes(t)) && (!fc || p.categoria_id == fc) && (!ft || p.talle === ft));
+  const cn = id => S.cats.find(c => c.id === id)?.nombre || '';
+  $('#res').innerHTML = (fc || ft ? `<small style="margin-bottom:4px">${l.length} productos · ${l.reduce((s, p) => s + p.stock, 0)} unidades</small>` : '')
+    + (l.slice(0, 200).map(p => `<div class="item" onclick="formP(${p.id})"><div><b>${esc(p.nombre)}</b><small>${esc([p.talle, cn(p.categoria_id), p.sku].filter(Boolean).join(' · '))}</small></div><div class="r"><b>${fm(p.precio)}</b><span class="tag ${p.stock > 2 ? 'ok' : ''}">${p.stock} u.</span></div></div>`).join('') || '<p class="mut">No hay productos.</p>');
 }
 function formP(id) {
   const p = S.prods.find(x => x.id === id) || {};
   modal(`<h2>${id ? 'Editar' : 'Nuevo'} producto</h2>
   <label>Nombre<input id="pn" value="${esc(p.nombre || '')}"></label>
-  <div class="row2"><label>Código SKU<input id="ps" value="${esc(p.sku || '')}"></label><label>Talle<input id="pt" value="${esc(p.talle || '')}"></label></div>
+  <div class="row2"><label>Código SKU<input id="ps" value="${esc(p.sku || '')}"></label><label>Talle<select id="pt">${talleOpts(p.talle)}</select></label></div>
+  <label>Categoría<select id="pg">${catOpts(p.categoria_id)}</select></label>
   <div class="row2"><label>Costo<input id="pc" type="number" inputmode="decimal" value="${p.costo ?? ''}" oninput="sug()"></label><label>Precio de venta<input id="pp" type="number" inputmode="decimal" value="${p.precio ?? ''}"></label></div>
   <small id="sg">El precio se sugiere con un margen de ${S.cfg.margen}% y podés cambiarlo.</small>
   ${p.costo_actualizado ? `<small>Costo actualizado el ${new Date(p.costo_actualizado).toLocaleDateString('es-AR')}</small>` : ''}<label>Stock<input id="pk" type="number" inputmode="numeric" value="${p.stock ?? 0}"></label>
@@ -250,7 +256,7 @@ function formP(id) {
 }
 function sug() { const c = +$('#pc').value || 0, p = Math.round(c * (1 + S.cfg.margen / 100)); $('#pp').value = p; $('#sg').textContent = 'Precio sugerido: ' + fm(p); }
 async function saveP(id) {
-  const o = { nombre: $('#pn').value.trim(), sku: $('#ps').value.trim(), talle: $('#pt').value.trim(), costo: +$('#pc').value || 0, precio: +$('#pp').value || 0, stock: parseInt($('#pk').value) || 0 };
+  const o = { nombre: $('#pn').value.trim(), sku: $('#ps').value.trim(), talle: $('#pt').value.trim() || null, categoria_id: +$('#pg').value || null, costo: +$('#pc').value || 0, precio: +$('#pp').value || 0, stock: parseInt($('#pk').value) || 0 };
   if (!o.nombre || !o.sku) return toast('Completá nombre y código');
   const { error } = id ? await db.from('productos').update(o).eq('id', id) : await db.from('productos').insert(o);
   if (error) return toast(error.code === '23505' ? 'Ese código ya existe' : error.message);
@@ -315,7 +321,7 @@ async function newV() {
 // Nueva compra
 function rowC() {
   return `<div class="card ci" style="margin-top:10px"><input class="cs" list="dl" placeholder="Buscar producto o escribir uno nuevo" onchange="pickC(this)"><small class="cm"></small>
-  <div class="cn" hidden><div class="row2" style="margin-top:6px"><input class="ck" placeholder="Código SKU"><input class="ct" placeholder="Talle"></div></div>
+  <div class="cn" hidden><div class="row2" style="margin-top:6px"><input class="ck" placeholder="Código SKU"><select class="ct">${talleOpts('')}</select></div><select class="cg" style="margin-top:6px">${catOpts('')}</select></div>
   <div class="row2" style="margin-top:6px"><input class="cq" type="number" inputmode="numeric" placeholder="Cantidad" value="1" oninput="totC2()"><input class="cc" type="number" inputmode="decimal" placeholder="Costo unitario" oninput="totC2()"></div></div>`;
 }
 function pickC(i) {
@@ -334,12 +340,12 @@ function formC() {
 }
 async function saveC() {
   const pv = S.provs.find(x => x.id == $('#cv').value); if (!pv) return toast('Elegí un proveedor');
-  const rows = [...document.querySelectorAll('.ci')].map(r => ({ pid: r.dataset.pid || '', nombre: r.querySelector('.cs').value.trim(), sku: r.querySelector('.ck').value.trim(), talle: r.querySelector('.ct').value.trim(), q: parseInt(r.querySelector('.cq').value) || 0, costo: +r.querySelector('.cc').value || 0 })).filter(x => x.nombre && x.q > 0);
+  const rows = [...document.querySelectorAll('.ci')].map(r => ({ pid: r.dataset.pid || '', nombre: r.querySelector('.cs').value.trim(), sku: r.querySelector('.ck').value.trim(), talle: r.querySelector('.ct').value.trim() || null, cat: +r.querySelector('.cg').value || null, q: parseInt(r.querySelector('.cq').value) || 0, costo: +r.querySelector('.cc').value || 0 })).filter(x => x.nombre && x.q > 0);
   if (!rows.length) return toast('Agregá al menos un producto');
   if (rows.some(x => !x.pid && !x.sku)) return toast('Falta el código de un producto nuevo');
   const nuevos = rows.filter(x => !x.pid);
   if (nuevos.length) {
-    const { data, error } = await db.from('productos').insert(nuevos.map(x => ({ nombre: x.nombre, sku: x.sku, talle: x.talle, costo: x.costo, precio: Math.round(x.costo * (1 + S.cfg.margen / 100)), stock: 0 }))).select();
+    const { data, error } = await db.from('productos').insert(nuevos.map(x => ({ nombre: x.nombre, sku: x.sku, talle: x.talle, categoria_id: x.cat, costo: x.costo, precio: Math.round(x.costo * (1 + S.cfg.margen / 100)), stock: 0 }))).select();
     if (error) return toast(error.code === '23505' ? 'Un código ya existe: buscalo en la lista' : error.message);
     nuevos.forEach(x => x.pid = data.find(d => d.sku === x.sku).id);
   }
@@ -390,12 +396,36 @@ function config() {
   <label>Margen para precio sugerido (%)<input type="number" inputmode="decimal" value="${S.cfg.margen}" onchange="saveM(this.value)"></label>
   <h2>Medios de pago</h2><small>El recargo (%) se suma al total de la venta.</small>
   <div id="mp">${S.medios.map(m => `<div class="item"><div style="flex:1"><input value="${esc(m.nombre)}" onchange="upM(${m.id},'nombre',this.value)"></div><div style="width:84px"><input type="number" inputmode="decimal" value="${m.recargo}" onchange="upM(${m.id},'recargo',this.value)"></div><button class="btn ghost s" onclick="delM(${m.id})">✕</button></div>`).join('')}</div>
-  <button class="btn ghost big" onclick="addM()">Agregar medio de pago</button><button class="btn ghost big" style="margin-top:28px" onclick="salir()">Cerrar sesión</button>`;
+  <button class="btn ghost big" onclick="addM()">Agregar medio de pago</button>${listaCfg('categorias', 'Categorías')}${listaCfg('talles', 'Talles')}<button class="btn ghost big" style="margin-top:28px" onclick="salir()">Cerrar sesión</button>`;
 }
 async function saveM(v) { S.cfg.margen = +v || 0; await db.from('config').update({ margen: S.cfg.margen }).eq('id', 1); toast('Margen guardado'); }
 async function upM(id, f, v) { await db.from('medios_pago').update({ [f]: f === 'recargo' ? +v || 0 : v }).eq('id', id); await load(); toast('Guardado'); }
 async function addM() { await db.from('medios_pago').insert({ nombre: 'Nuevo medio', recargo: 0 }); await load(); config(); }
 async function delM(id) { if (!confirm('¿Eliminar este medio de pago?')) return; await db.from('medios_pago').delete().eq('id', id); await load(); config(); }
+
+// ---------- Categorías y talles ----------
+const catOpts = sel => '<option value="">Sin categoría</option>' + S.cats.map(c => `<option value="${c.id}" ${c.id == sel ? 'selected' : ''}>${esc(c.nombre)}</option>`).join('');
+const talleOpts = sel => { const l = S.talles.map(t => t.nombre); if (sel && !l.includes(sel)) l.push(sel); return '<option value="">Sin talle</option>' + l.map(t => `<option ${t === sel ? 'selected' : ''}>${esc(t)}</option>`).join(''); };
+function listaCfg(t, tit) {
+  const l = t === 'talles' ? S.talles : S.cats;
+  return `<h2>${tit}</h2>` + l.map(x => `<div class="item"><div style="flex:1"><input value="${esc(x.nombre)}" onchange="upL('${t}',${x.id},this.value)"></div><button class="btn ghost s" onclick="delL('${t}',${x.id})">✕</button></div>`).join('')
+    + `<div class="bar" style="margin-top:8px"><input id="n_${t}" placeholder="Nuevo ${t === 'talles' ? 'talle' : 'categoría'}"><button class="btn" onclick="addL2('${t}')">Agregar</button></div>`;
+}
+async function addL2(t) { const n = $('#n_' + t).value.trim(); if (!n) return; const { error } = await db.from(t).insert({ nombre: n }); if (error) return toast(error.code === '23505' ? 'Ya existe' : error.message); await load(); config(); }
+async function upL(t, id, v) {
+  v = v.trim(); if (!v) return config();
+  const old = (t === 'talles' ? S.talles : S.cats).find(x => x.id === id).nombre;
+  const { error } = await db.from(t).update({ nombre: v }).eq('id', id); if (error) { toast('Ya existe'); return config(); }
+  if (t === 'talles') await db.from('productos').update({ talle: v }).eq('talle', old);
+  await load(); toast('Guardado');
+}
+async function delL(t, id) {
+  const x = (t === 'talles' ? S.talles : S.cats).find(y => y.id === id);
+  const n = S.prods.filter(p => t === 'talles' ? p.talle === x.nombre : p.categoria_id === id).length;
+  if (!confirm(`¿Eliminar "${x.nombre}"?` + (n ? ` ${n} producto(s) quedarán sin ${t === 'talles' ? 'talle' : 'categoría'}.` : ''))) return;
+  if (t === 'talles') await db.from('productos').update({ talle: null }).eq('talle', x.nombre);
+  await db.from(t).delete().eq('id', id); await load(); config();
+}
 
 // ---------- Estadísticas ----------
 async function stats() {
