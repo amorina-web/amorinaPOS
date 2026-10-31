@@ -40,8 +40,8 @@ label input,label select{margin-top:4px;color:var(--tx);font-size:16px}
 .tag.ok{background:#e8f6ee;color:#1d7a46}
 details.item{display:block}summary{display:flex;justify-content:space-between;cursor:pointer;list-style:none}
 summary::-webkit-details-marker{display:none}
-nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom)}
-nav button{flex:1;border:0;background:none;padding:12px 2px;font:600 12px Figtree,sans-serif;color:var(--mu)}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;overflow-x:auto;background:#fff;border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1 0 auto;border:0;background:none;padding:12px 11px;font:600 12px Figtree,sans-serif;color:var(--mu)}
 nav button.on{color:var(--ac);box-shadow:inset 0 2px 0 var(--ac)}
 #modal{position:fixed;inset:0;background:rgba(20,18,24,.45);display:flex;align-items:flex-end;justify-content:center;z-index:10}
 #modal[hidden],#app[hidden],#login[hidden]{display:none}
@@ -78,6 +78,7 @@ nav button.on{color:var(--ac);box-shadow:inset 0 2px 0 var(--ac)}
     <button data-v="productos" onclick="go('productos')">Productos</button>
     <button data-v="caja" onclick="go('caja')">Caja</button>
     <button data-v="compras" onclick="go('compras')">Compras</button>
+    <button data-v="stats" onclick="go('stats')">Estadísticas</button>
     <button data-v="config" onclick="go('config')">Config.</button>
   </nav>
 </div>
@@ -120,7 +121,7 @@ async function load() {
 }
 async function go(v) {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
-  $('#main').innerHTML = ''; await V[v](); scrollTo(0, 0);
+  $('#main').innerHTML = ''; document.querySelector('nav .on')?.scrollIntoView({ inline: 'center', block: 'nearest' }); await V[v](); scrollTo(0, 0);
 }
 
 // ---------- Inicio ----------
@@ -396,7 +397,24 @@ async function upM(id, f, v) { await db.from('medios_pago').update({ [f]: f === 
 async function addM() { await db.from('medios_pago').insert({ nombre: 'Nuevo medio', recargo: 0 }); await load(); config(); }
 async function delM(id) { if (!confirm('¿Eliminar este medio de pago?')) return; await db.from('medios_pago').delete().eq('id', id); await load(); config(); }
 
-const V = { inicio, ventas, productos, caja, compras, config };
+// ---------- Estadísticas ----------
+async function stats() {
+  await load();
+  const l = S.prods.filter(p => p.stock > 0), sum = f => l.reduce((s, p) => s + f(p), 0);
+  const cost = sum(p => p.stock * p.costo), vta = sum(p => p.stock * p.precio), gan = vta - cost;
+  const mv = vta ? gan / vta * 100 : 0, mc = cost ? gan / cost * 100 : 0, sinC = l.filter(p => !+p.costo).length;
+  const top = [...l].sort((a, b) => b.stock * b.costo - a.stock * a.costo).slice(0, 10);
+  $('#main').innerHTML = `<h1>Estadísticas</h1><small>Stock actual: ${sum(p => p.stock)} unidades en ${l.length} productos</small>
+  <div class="card" style="margin-top:12px"><small>Invertido en stock (a costo)</small><div class="big-n" style="color:var(--tx)">${fm(cost)}</div></div>
+  <div class="card" style="margin-top:10px"><small>Valor de venta del stock</small><div class="big-n" style="color:var(--tx)">${fm(vta)}</div></div>
+  <div class="card" style="margin-top:10px"><small>Ganancia si se vende todo</small><div class="big-n">${fm(gan)}</div>
+  <div class="item" style="padding:8px 0"><span>Margen sobre la venta</span><b>${mv.toFixed(1)}%</b></div>
+  <div class="item" style="padding:8px 0;border:0"><span>Recargo sobre el costo</span><b>${mc.toFixed(1)}%</b></div></div>
+  ${sinC ? `<small style="margin-top:10px">${sinC} producto(s) con stock no tienen costo cargado, por eso la ganancia puede estar sobrestimada.</small>` : ''}
+  <h2>Mayor dinero invertido</h2>` + (top.map(p => `<div class="item"><div><b>${esc(p.nombre)}</b><small>${esc(p.talle || '')} · ${p.stock} u. × ${fm(p.costo)}</small></div><div class="r"><b>${fm(p.stock * p.costo)}</b><small>Ganancia ${fm(p.stock * (p.precio - p.costo))}</small></div></div>`).join('') || '<p class="mut">No hay productos con stock.</p>');
+}
+
+const V = { inicio, ventas, productos, caja, compras, stats, config };
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && !$('#login').hidden) entrar(); });
 (async () => { const { data } = await db.auth.getSession(); data.session ? start() : $('#login').hidden = false; })();
 </script>
