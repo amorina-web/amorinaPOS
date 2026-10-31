@@ -253,9 +253,10 @@ function listP() {
       <div class="r"><b>${pr.length > 1 ? 'desde ' + fm(Math.min(...pr)) : fm(pr[0])}</b><span class="tag ${st > 2 ? 'ok' : ''}">${st} u.</span></div></div>`; }).join('') || '<p class="mut">No hay productos.</p>');
 }
 function rowV(v) {
-  return `<div class="card vrow" data-id="${v.id || ''}" style="margin-top:8px"><div class="row2"><select class="vt" onchange="autoSku(this)">${talleOpts(v.talle)}</select><input class="vs" placeholder="Código SKU" value="${esc(v.sku || '')}"></div>
-  <div class="row2" style="margin-top:6px"><input class="vk" type="number" inputmode="numeric" placeholder="Stock" value="${v.stock ?? 0}"><button class="btn ghost s" onclick="rmV(this)">Quitar talle</button></div></div>`;
+  return `<div class="card vrow" data-id="${v.id || ''}" style="margin-top:8px"><div class="row2"><label>Talle<select class="vt" onchange="autoSku(this)">${talleOpts(v.talle)}</select></label><label>Código (SKU)<input class="vs" placeholder="Ej: A519" value="${esc(v.sku || '')}"></label></div>
+  <div class="row2"><label>Stock (unidades)<input class="vk" type="number" inputmode="numeric" value="${v.stock ?? 0}"></label><div style="display:flex;flex-direction:column;gap:6px;justify-content:flex-end"><button class="btn ghost s" onclick="rmV(this)">Quitar talle</button>${v.id ? '<button class="btn ghost s" onclick="sepV(this)">Separar</button>' : ''}</div></div></div>`;
 }
+function sepV(b) { b.closest('.vrow').dataset.sep = '1'; b.closest('.vrow').hidden = true; toast('Se separa como otro producto al guardar'); }
 function autoSku(sel) {
   const r = sel.closest('.vrow'), i = r.querySelector('.vs'), f = document.querySelector('.vrow');
   if (!i.value && r !== f && sel.value && f.querySelector('.vs').value) i.value = f.querySelector('.vs').value + '-' + sel.value;
@@ -270,7 +271,7 @@ function formP(id) {
   <div class="row2"><label>Costo<input id="pc" type="number" inputmode="decimal" value="${p.costo ?? ''}" oninput="sug()"></label><label>Precio de venta<input id="pp" type="number" inputmode="decimal" value="${p.precio ?? ''}"></label></div>
   <small id="sg">El precio se sugiere con un margen de ${S.cfg.margen}% y podés cambiarlo. Vale para todos los talles.</small>
   ${p.costo_actualizado ? `<small>Costo actualizado el ${new Date(p.costo_actualizado).toLocaleDateString('es-AR')}</small>` : ''}
-  <h2>Talles y stock</h2><div id="vr">${(vs.length ? vs : [{}]).map(rowV).join('')}</div>
+  <h2>Talles y stock</h2><small style="margin-bottom:4px">Cada fila es un talle de este producto. Si una fila es en realidad otro producto, tocá Separar.</small><div id="vr">${(vs.length ? vs : [{}]).map(rowV).join('')}</div>
   <button class="btn ghost big" onclick="$('#vr').insertAdjacentHTML('beforeend',rowV({}))">Agregar talle</button>
   <button class="btn big" onclick="saveP(${id || 0})">Guardar</button>${p0 ? `<button class="btn ghost big" onclick="delP(${id})">Eliminar producto</button>` : ''}`);
 }
@@ -278,8 +279,8 @@ function sug() { const c = +$('#pc').value || 0, p = Math.round(c * (1 + S.cfg.m
 async function saveP(id) {
   const nombre = $('#pn').value.trim(); if (!nombre) return toast('Escribí el nombre');
   const base = { nombre, categoria_id: +$('#pg').value || null, costo: +$('#pc').value || 0, precio: +$('#pp').value || 0 };
-  const rows = [...document.querySelectorAll('.vrow')].map(r => ({ id: r.dataset.id, del: r.dataset.del, talle: r.querySelector('.vt').value || null, sku: r.querySelector('.vs').value.trim(), stock: parseInt(r.querySelector('.vk').value) || 0 }));
-  const act = rows.filter(r => !r.del), dels = rows.filter(r => r.del && r.id);
+  const rows = [...document.querySelectorAll('.vrow')].map(r => ({ id: r.dataset.id, del: r.dataset.del, sep: r.dataset.sep, talle: r.querySelector('.vt').value || null, sku: r.querySelector('.vs').value.trim(), stock: parseInt(r.querySelector('.vk').value) || 0 }));
+  const act = rows.filter(r => !r.del && !r.sep), dels = rows.filter(r => r.del && r.id), seps = rows.filter(r => r.sep && !r.del && r.id);
   if (!act.length) return toast('Agregá al menos un talle');
   if (act.some(r => !r.sku)) return toast('Falta el código de un talle');
   if (new Set(act.map(r => r.sku.toLowerCase())).size < act.length) return toast('Hay códigos repetidos');
@@ -291,6 +292,7 @@ async function saveP(id) {
     const { error } = r.id ? await db.from('productos').update(o).eq('id', r.id) : await db.from('productos').insert(o);
     if (error) return toast(error.code === '23505' ? 'El código ' + r.sku + ' ya existe' : error.message);
   }
+  for (const r of seps) await db.from('productos').update({ grupo: crypto.randomUUID() }).eq('id', r.id);
   if (dels.length) await db.from('productos').delete().in('id', dels.map(r => +r.id));
   await cerrar(); await load(); toast('Producto guardado'); productos();
 }
